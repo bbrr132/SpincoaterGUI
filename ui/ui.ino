@@ -23,6 +23,8 @@ TaskHandle_t Task1;
 TaskHandle_t taskHandle = NULL;
 void TaskSendRPM(void *pvParameters);
 
+volatile bool guiReady = false;
+
 void touch_calibrate()//屏幕校准
 {
   uint16_t calData[5];
@@ -99,10 +101,12 @@ void my_touchpad_read( lv_indev_drv_t * indev_driver, lv_indev_data_t * data )
     data->point.y = touchY;
   }
 }
-
 void setup()
 {
+  int RXD2 = 35;
+  int TXD2 = 21;
   Serial.begin(2000000);
+  //Serial2.begin(2000000, SERIAL_8N1, RXD2, TXD2);
   xTaskCreatePinnedToCore(
     TaskSendRPM, /* Function to implement the task */
     "TaskSendRPM", /* Name of the task */
@@ -130,7 +134,7 @@ void setup()
 
   tft.init();          /* TFT init */
   tft.setRotation( 3 ); /* Landscape orientation, flipped */
-  touch_calibrate();
+  //touch_calibrate();
   uint16_t calData[5] = { 265, 3572, 294, 3503, 5 };
   tft.setTouch(calData);
   lv_disp_draw_buf_init( &draw_buf, buf, NULL, screenWidth * screenHeight / 10 );
@@ -156,6 +160,8 @@ void setup()
   ui_init();
 
   setMainChart();
+  //Serial.println("Done GUI True");
+  guiReady = true;
 }
 
 void loop()
@@ -180,7 +186,6 @@ void TaskSendRPM(void *pvParameters) {  // This is a task.
         previousMillis = millis();
         rpmSetPoint = profileRPM[savedProfileNumber][0];
         Serial.println("T " + String(convertRPMToRads((double)rpmSetPoint)));
-        Serial.println(startingTimer);
         acceleration = (profileRPM[savedProfileNumber][i] - profileRPM[savedProfileNumber][i - 1]) /
                        (profileTime[savedProfileNumber][i] - profileTime[savedProfileNumber][i - 1]);
       }
@@ -218,6 +223,11 @@ void serialToRpmTask(void *pvParameters) {
   String inputData = "";
   bool connectedState = false;
   Serial.println("Starting RPM Core");
+  for (;;) {
+    if (guiReady) {
+      break;
+    }
+  }
   while (true) {
     // Check if data is available on Serial
     if (Serial.available()) {
